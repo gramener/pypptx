@@ -6,8 +6,15 @@ import re
 from lxml import etree
 from lxml.builder import ElementMaker
 from pypptx import a, p, shape, color, nsmap
+from color import rgba
 
 re_ns = re.compile(r'({.*?})?(.*)')
+
+
+def msclr(color):
+    r, g, b, a = rgba(color)
+    return '%02x%02x%02x' % (255*r, 255*g, 255*b)
+
 
 class Draw(object):
     def __init__(self, slide, width, height):
@@ -22,10 +29,10 @@ class Draw(object):
             shape = function(self, e)
             keys = e.keys()
             if 'fill' in keys:
-                shape.spPr.append(a.solidFill(color(srgbClr=e.get('fill')[1:])))
+                shape.spPr.append(a.solidFill(color(srgbClr=msclr(e.get('fill')))))
             # TODO: convert short color string to hex 
             if 'stroke' in keys:
-                shape.spPr.append(a.ln(a.solidFill(color(srgbClr=e.get('stroke')[1:]))))
+                shape.spPr.append(a.ln(a.solidFill(color(srgbClr=msclr(e.get('stroke'))))))
             # TODO: Add stroke width
             #if 'stroke-width' in keys:
             #    shape.spPr.append(a.ln(w='3175'))
@@ -78,10 +85,10 @@ class Draw(object):
             return
         # TODO: font-size (Autofit) and text orientation
         shp = shape('rect', self.x(float(e.get('x', 0))), self.y(float(e.get('y', 0))), self.x(0), self.y(0))
-        shp.append(p.txBody(a.bodyPr(a.normAutofit(fontScale="62500", lnSpcReduction="20000"), anchor='ctr'),
+        shp.append(p.txBody(a.bodyPr(a.normAutofit(fontScale="62500", lnSpcReduction="20000"),
+            anchor='ctr', wrap='none'),
             a.p(a.pPr(algn='ctr'),
-                a.r(a.aPr(sz='1000'),
-                    a.t(e.text)))))
+                a.r(a.t(e.text)))))
 
         self.shapes.append(shp)
         return shp
