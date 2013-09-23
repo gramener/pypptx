@@ -30,9 +30,10 @@ class Draw(object):
             keys = e.keys()
             if 'fill' in keys:
                 shape.spPr.append(a.solidFill(color(srgbClr=msclr(e.get('fill')))))
-            # TODO: convert short color string to hex 
             if 'stroke' in keys:
                 shape.spPr.append(a.ln(a.solidFill(color(srgbClr=msclr(e.get('stroke'))))))
+            if not 'stroke' in keys:
+                shape.spPr.append(a.ln(a.solidFill(color(srgbClr='000000'))))
             # TODO: Add stroke width
             #if 'stroke-width' in keys:
             #    shape.spPr.append(a.ln(w='3175'))
@@ -81,14 +82,23 @@ class Draw(object):
         return shp
 
     def text(self, e):
+        keys = e.keys()
         if not e.text:
             return
-        # TODO: font-size (Autofit) and text orientation
         shp = shape('rect', self.x(float(e.get('x', 0))), self.y(float(e.get('y', 0))), self.x(0), self.y(0))
-        shp.append(p.txBody(a.bodyPr(a.normAutofit(fontScale="62500", lnSpcReduction="20000"),
-            anchor='ctr', wrap='none'),
+        if 'transform' in keys:
+            shp.append(p.txBody(a.bodyPr(a.normAutofit(fontScale="62500", lnSpcReduction="20000"),
+                a.scene3d(a.camera(a.rot(lat='0', lon='0', rev=str(int(e.get('transform')[8:11])*60000)),
+                    prst='orthographicFront'), a.lightRig(rig='threePt', dir='t')),
+                anchor='ctr', wrap='none'),
+            a.p(a.pPr(algn='r'),
+                a.r(a.t(e.text)))))
+        else:
+            shp.append(p.txBody(a.bodyPr(a.normAutofit(fontScale="62500", lnSpcReduction="20000"),
+                anchor='ctr', wrap='none'),
             a.p(a.pPr(algn='ctr'),
                 a.r(a.t(e.text)))))
+
 
         self.shapes.append(shp)
         return shp
