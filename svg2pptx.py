@@ -76,7 +76,7 @@ class Draw(object):
     def line(self, e):
         x1, y1 = self.x(e.get('x1', 0)), self.y(e.get('y1', 0))
         x2, y2 = self.x(e.get('x2', 0)), self.y(e.get('y2', 0))
-        shp = shape('line', x1, y1, x2, y2)
+        shp = shape('line', x1, y1, x2 - x1, y2 - y1)
         self.shapes.append(shp)
         return shp
 
