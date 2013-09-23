@@ -21,8 +21,8 @@ class Draw(object):
         self.slide = slide
         self.shapes = slide._element.find('.//p:spTree', namespaces=nsmap)
         # TODO: Replace 9999... with slide width and height
-        self.x = lambda x: int(x * 9999999 / width)
-        self.y = lambda y: int(y * 7777777 / height)
+        self.x = lambda x: int(float(x) * 9999999 / width)
+        self.y = lambda y: int(float(y) * 7777777 / height)
 
     def _shape_attrs(function):
         def wrapped(self, e):
@@ -64,20 +64,19 @@ class Draw(object):
     @_shape_attrs
     def rect(self, e):
         shp = shape('rect',
-            self.x(float(e.get('x', 0))),
-            self.y(float(e.get('y', 0))),
-            self.x(float(e.get('width', 0))),
-            self.y(float(e.get('height', 0)))
+            self.x(e.get('x', 0)),
+            self.y(e.get('y', 0)),
+            self.x(e.get('width', 0)),
+            self.y(e.get('height', 0))
         )
         self.shapes.append(shp)
         return shp
 
     @_shape_attrs
     def line(self, e):
-        shp = shape('line',
-            self.x(float(e.get('x1', 0))), self.y(float(e.get('y1', 0))),
-            self.x(float(e.get('x2', 0))), self.y(float(e.get('y2', 0)))
-        )
+        x1, y1 = self.x(e.get('x1', 0)), self.y(e.get('y1', 0))
+        x2, y2 = self.x(e.get('x2', 0)), self.y(e.get('y2', 0))
+        shp = shape('line', x1, y1, x2, y2)
         self.shapes.append(shp)
         return shp
 
@@ -85,7 +84,7 @@ class Draw(object):
         keys = e.keys()
         if not e.text:
             return
-        shp = shape('rect', self.x(float(e.get('x', 0))), self.y(float(e.get('y', 0))), self.x(0), self.y(0))
+        shp = shape('rect', self.x(e.get('x', 0)), self.y(e.get('y', 0)), self.x(0), self.y(0))
         if 'transform' in keys:
             shp.append(p.txBody(a.bodyPr(a.normAutofit(fontScale="62500", lnSpcReduction="20000"),
                 a.scene3d(a.camera(a.rot(lat='0', lon='0', rev=str(int(e.get('transform')[8:11])*60000)),
@@ -98,7 +97,6 @@ class Draw(object):
                 anchor='ctr', wrap='none'),
             a.p(a.pPr(algn='ctr'),
                 a.r(a.t(e.text)))))
-
 
         self.shapes.append(shp)
         return shp
@@ -142,5 +140,5 @@ if __name__ == '__main__':
     blank_slidelayout = Presentation.slidelayouts[6]
     slide = Presentation.slides.add_slide(blank_slidelayout)
 
-    svg2mso(slide, tree) 
+    svg2mso(slide, tree)
     Presentation.save("test.pptx")
