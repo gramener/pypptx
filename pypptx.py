@@ -53,6 +53,32 @@ def shape(geom, x, y, w, h):
     # setattr(shp, 'pr', shp.find('.//p:spPr', namespaces=nsmap))
     return shp
 
+_cstmshape = '<p:sp ' + xmlns('p', 'a') + ('>'
+    '  <p:nvSpPr>'
+    '    <p:cNvPr id="%s" name="%s"/>'
+    '    <p:cNvSpPr/>'
+    '    <p:nvPr/>'
+    '  </p:nvSpPr>'
+    '  <p:spPr>'
+    '    <a:xfrm>'
+    '      <a:off x="%s" y="%s"/>'
+    '      <a:ext cx="%s" cy="%s"/>'
+    '    </a:xfrm>'
+    '    <a:custGeom>'
+    '      <a:avLst/>'
+    '      <a:gdLst/>'
+    '      <a:ahLst/>'
+    '      <a:cxnLst/>'
+    '      <a:rect l="0" t="0" r="0" b="0"/>'
+    '    </a:custGeom>'
+    '  </p:spPr>'
+    '</p:sp>')
+
+def cust_shape(x, y, w, h):
+    id = _globals['shape'] = _globals['shape'] + 1
+    shp = objectify.fromstring(_cstmshape % (id, 'Freeform %d' %id, x, y, w, h))
+    return shp
+
 def color(schemeClr=None, srgbClr=None, prstClr=None, hslClr=None, sysClr=None, scrgbClr=None, **mod):
     """
     Return a new color object.
