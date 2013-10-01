@@ -5,11 +5,11 @@ Converts an SVG shape into a Microsoft Office object, and saves as pptx file
 import re
 from lxml import etree
 from lxml.builder import ElementMaker
-from pypptx import a, p, shape, color, nsmap
+from pypptx import a, p, shape, color, nsmap, cust_shape
 from color import rgba
 
 re_ns = re.compile(r'({.*?})?(.*)')
-
+re_path = re.compile(r'[mMzZlLhHvVcCsSqQtTaA]|[\+\-]?[\d\.e]+')
 
 def msclr(color):
     r, g, b, a = rgba(color)
@@ -100,6 +100,39 @@ class Draw(object):
 
         self.shapes.append(shp)
         return shp
+
+    @_shape_attrs
+    def path(self, e):
+        pathstr = re_path.findall(e.get('d', ''))
+        n, length, cmd, relative, shp = 0, len(pathstr), None, False, None
+        x1, y1 = 0, 0
+        xy = lambda n: (float(pathstr[n]) + (x1 if relative else 0),
+                        float(pathstr[n + 1]) + (y1 if relative else 0))
+
+        shp = cust_shape(x1, y1, 100000, 100000)
+        path = a.path(w="100000", h="100000")
+        shp.find('.//a:custGeom', namespaces=nsmap).append(
+            a.pathLst(path))
+
+        while n < length:
+            if pathstr[n].lower() in 'mzlhvcsqta':
+                cmd = pathstr[n].lower()
+                relative = str.islower(pathstr[n])
+                n += 1
+
+            if cmd == 'm':
+                x1, y1 = xy(n)
+                path.append(a.moveTo(a.pt(x=str(self.x(x1)), y=str(self.y(y1)))))
+                n += 2
+
+            elif cmd == 'l':
+                x1, y1 = xy(n)
+                path.append(a.lnTo(a.pt(x=str(self.x(x1)), y=str(self.y(y1)))))
+                n += 2
+
+        self.shapes.append(shp)
+        return shp
+
 
 
 def svg2mso(slide, svg, width=940, height=None):
