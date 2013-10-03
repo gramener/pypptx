@@ -28,15 +28,22 @@ class Draw(object):
         def wrapped(self, e):
             shape = function(self, e)
             keys = e.keys()
+
             if 'fill' in keys:
-                shape.spPr.append(a.solidFill(color(srgbClr=msclr(e.get('fill')))))
+                if e.get('fill') == 'none':
+                    shape.spPr.append(a.noFill())
+                else:
+                    shape.spPr.append(a.solidFill(color(srgbClr=msclr(e.get('fill')))))
             if 'stroke' in keys:
-                shape.spPr.append(a.ln(a.solidFill(color(srgbClr=msclr(e.get('stroke'))))))
+                if e.get('stroke') == 'none':
+                    shape.spPr.append(a.ln(a.noFill()))
+                else:
+                    shape.spPr.append(a.ln(a.solidFill(color(srgbClr=msclr(e.get('stroke'))))))
             if not 'stroke' in keys:
                 shape.spPr.append(a.ln(a.solidFill(color(srgbClr='000000'))))
             # TODO: Add stroke width
             #if 'stroke-width' in keys:
-            #    shape.spPr.append(a.ln(w='3175'))
+            #    shape.spPr.append(a.ln(w=str(float(int(e.get('stroke-width'))*12700)/2)))
             return shape
         return wrapped
 
@@ -125,10 +132,22 @@ class Draw(object):
                 path.append(a.moveTo(a.pt(x=str(self.x(x1)), y=str(self.y(y1)))))
                 n += 2
 
+            elif cmd == 'z':
+                path.append(a.close())
+
             elif cmd == 'l':
                 x1, y1 = xy(n)
                 path.append(a.lnTo(a.pt(x=str(self.x(x1)), y=str(self.y(y1)))))
                 n += 2
+
+            elif cmd == 'c':
+                xc1, yc1 = xy(n)
+                xc2, yc2 = xy(n + 2)
+                x1, y1 = xy(n + 4)
+                path.append(a.cubicBezTo(a.pt(x=str(self.x(xc1)), y=str(self.y(yc1))),
+                    a.pt(x=str(self.x(xc2)), y=str(self.y(yc2))),
+                    a.pt(x=str(self.x(x1)), y=str(self.y(y1)))))
+                n += 6
 
         self.shapes.append(shp)
         return shp
