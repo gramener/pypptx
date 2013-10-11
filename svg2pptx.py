@@ -16,6 +16,10 @@ def msclr(color):
     return '%02x%02x%02x' % (255*r, 255*g, 255*b)
 
 
+color_dict = {'circle':'FFFFFF', 'ellipse':'FFFFFF',
+              'line':'000000', 'path':'000000',
+              'rect':'FFFFFF'}
+
 class Draw(object):
     def __init__(self, slide, width, height):
         self.slide = slide
@@ -27,23 +31,47 @@ class Draw(object):
     def _shape_attrs(function):
         def wrapped(self, e):
             shape = function(self, e)
+            s = function.__name__
             keys = e.keys()
+
+            # TODO: Optimize
+            def clr_grad(color):
+                if color.startswith('rgba('):
+                    r, g, b, a = rgba(color)
+                    return  '%d' % int((1 - a)*100000 if a < 1 else 100000)
+                elif 'opacity' in keys:
+                    return '%d' % int((1 - float(e.get('opacity'))) * 100000)
+                else:
+                    return '%d' % 100000
+
+
 
             if 'fill' in keys:
                 if e.get('fill') == 'none':
                     shape.spPr.append(a.noFill())
                 else:
-                    shape.spPr.append(a.solidFill(color(srgbClr=msclr(e.get('fill')))))
-            if 'stroke' in keys:
+                    shape.spPr.append(a.solidFill(a.srgbClr(a.alpha(val=str(clr_grad(e.get('fill')))), 
+                        val=str(msclr(e.get('fill'))))))
+            if not 'fill' in keys:
+                    shape.spPr.append(a.solidFill(color(srgbClr='000000')))
+            if 'stroke' and 'stroke-width' in keys:
+                shape.spPr.append(a.ln(a.solidFill(color(srgbClr=msclr(e.get('stroke')))),
+                    w=str(int(e.get('stroke-width'))*12700/2)))                 
+            elif 'stroke' in keys:
                 if e.get('stroke') == 'none':
                     shape.spPr.append(a.ln(a.noFill()))
                 else:
                     shape.spPr.append(a.ln(a.solidFill(color(srgbClr=msclr(e.get('stroke'))))))
-            if not 'stroke' in keys:
+            elif not 'stroke' and not 'fill' in keys:
                 shape.spPr.append(a.ln(a.solidFill(color(srgbClr='000000'))))
-            # TODO: Add stroke width
-            #if 'stroke-width' in keys:
-            #    shape.spPr.append(a.ln(w=str(float(int(e.get('stroke-width'))*12700)/2)))
+            elif not 'stroke' and 'fill' in keys:
+                if s in ['rect']:
+                    shape.spPr.append(a.ln(a.noFill()))
+                elif s in ['circle','ellipse']:
+                    shape.spPr.append(a.ln(a.solidFill(color(srgbClr=msclr(e.get('fill'))))))
+                elif s in ['path', 'line']:
+                    shape.spPr.append(a.ln(a.solidFill(color(srgbClr='000000'))))
+
             return shape
         return wrapped
 
@@ -148,6 +176,24 @@ class Draw(object):
                     a.pt(x=str(self.x(xc2)), y=str(self.y(yc2))),
                     a.pt(x=str(self.x(x1)), y=str(self.y(y1)))))
                 n += 6
+
+            #TODO blockArc:
+            #elif cmd == 'a':
+            #    x1, y1 = xy(n)
+            #    cx, cy = xy(n + 5)
+            #    shp = shape('blockArc', self.x(x1), self.y(y1), self.x(cx), self.y(cy))
+            #    n += 7
+
+            elif cmd == 'a':
+                wR, hR = xy(n)
+                print wR, hR
+                stAng, swAng = xy(n + 5)
+                print stAng, swAng
+                path.append(a.arcTo(
+                    wR=str(self.x(wR)), hR=str(self.y(hR)),
+                    stAng=str(self.x(stAng-wR)), swAng=str(self.y(swAng-hR))))
+                n += 7
+
 
         self.shapes.append(shp)
         return shp
