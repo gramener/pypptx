@@ -31,10 +31,10 @@ class Draw(object):
     def _shape_attrs(function):
         def wrapped(self, e):
             shape = function(self, e)
-            s = function.__name__
+            tag = function.__name__
             keys = e.keys()
 
-            # TODO: Optimize
+
             def clr_grad(color):
                 if color.startswith('rgba('):
                     r, g, b, a = rgba(color)
@@ -45,7 +45,7 @@ class Draw(object):
                     return '%d' % 100000
 
 
-
+            # TODO: Optimize
             if 'fill' in keys:
                 if e.get('fill') == 'none':
                     shape.spPr.append(a.noFill())
@@ -53,6 +53,9 @@ class Draw(object):
                     shape.spPr.append(a.solidFill(a.srgbClr(a.alpha(val=str(clr_grad(e.get('fill')))), 
                         val=str(msclr(e.get('fill'))))))
             if not 'fill' in keys:
+                if tag in ['line']:
+                    shape.spPr.append(a.ln(a.solidFill(color(srgbClr='000000'))))
+                else:
                     shape.spPr.append(a.solidFill(color(srgbClr='000000')))
             if 'stroke' and 'stroke-width' in keys:
                 shape.spPr.append(a.ln(a.solidFill(color(srgbClr=msclr(e.get('stroke')))),
@@ -65,11 +68,11 @@ class Draw(object):
             elif not 'stroke' and not 'fill' in keys:
                 shape.spPr.append(a.ln(a.solidFill(color(srgbClr='000000'))))
             elif not 'stroke' and 'fill' in keys:
-                if s in ['rect']:
+                if tag in ['rect']:
                     shape.spPr.append(a.ln(a.noFill()))
-                elif s in ['circle','ellipse']:
+                elif tag in ['circle','ellipse']:
                     shape.spPr.append(a.ln(a.solidFill(color(srgbClr=msclr(e.get('fill'))))))
-                elif s in ['path', 'line']:
+                elif tag in ['path', 'line']:
                     shape.spPr.append(a.ln(a.solidFill(color(srgbClr='000000'))))
 
             return shape
@@ -121,12 +124,18 @@ class Draw(object):
             return
         shp = shape('rect', self.x(e.get('x', 0)), self.y(e.get('y', 0)), self.x(0), self.y(0))
         if 'transform' in keys:
+            key = e.get('transform')
             shp.append(p.txBody(a.bodyPr(a.normAutofit(fontScale="62500", lnSpcReduction="20000"),
-                a.scene3d(a.camera(a.rot(lat='0', lon='0', rev=str(int(e.get('transform')[8:11])*60000)),
+                a.scene3d(a.camera(a.rot(lat='0', lon='0',
+                    rev=str(abs(int(key[(key.find('rotate')+7):-1].split()[0])*60000))),
                     prst='orthographicFront'), a.lightRig(rig='threePt', dir='t')),
                 anchor='ctr', wrap='none'),
             a.p(a.pPr(algn='r'),
                 a.r(a.t(e.text)))))
+        elif 'font-size' in keys:
+            shp.append(p.txBody(a.bodyPr(anchor='ctr', wrap='none'),
+            a.p(a.pPr(algn='r' if 'text-anchor' in keys else 'l'), a.r(a.rPr(lang='en-US', sz=str(int(float(e.get('font-size'))*100)), dirty='0', smtClean='0'),
+                    a.t(e.text)))))
         else:
             shp.append(p.txBody(a.bodyPr(a.normAutofit(fontScale="62500", lnSpcReduction="20000"),
                 anchor='ctr', wrap='none'),
@@ -144,8 +153,8 @@ class Draw(object):
         xy = lambda n: (float(pathstr[n]) + (x1 if relative else 0),
                         float(pathstr[n + 1]) + (y1 if relative else 0))
 
-        shp = cust_shape(x1, y1, 100000, 100000)
-        path = a.path(w="100000", h="100000")
+        shp = cust_shape(x1, y1, 150000, 150000)
+        path = a.path(w="150000", h="150000")
         shp.find('.//a:custGeom', namespaces=nsmap).append(
             a.pathLst(path))
 
@@ -185,13 +194,11 @@ class Draw(object):
             #    n += 7
 
             elif cmd == 'a':
-                wR, hR = xy(n)
-                print wR, hR
-                stAng, swAng = xy(n + 5)
-                print stAng, swAng
+                stAng, swAng = xy(n)
+                wR, hR = xy(n + 5)
                 path.append(a.arcTo(
                     wR=str(self.x(wR)), hR=str(self.y(hR)),
-                    stAng=str(self.x(stAng-wR)), swAng=str(self.y(swAng-hR))))
+                    stAng=str(self.x(stAng)), swAng=str(self.y(swAng))))
                 n += 7
 
 
