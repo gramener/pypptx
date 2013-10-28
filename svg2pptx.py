@@ -52,7 +52,7 @@ class Draw(object):
                 else:
                     shape.spPr.append(a.solidFill(a.srgbClr(a.alpha(val=str(clr_grad(e.get('fill')))), 
                         val=str(msclr(e.get('fill'))))))
-            if not 'fill' in keys:
+            elif not 'fill' in keys:
                 if tag in ['line']:
                     shape.spPr.append(a.ln(a.solidFill(color(srgbClr='000000'))))
                 else:
@@ -120,6 +120,25 @@ class Draw(object):
 
     def text(self, e):
         keys = e.keys()
+        def txt_anchor():
+            dict = {'hanging':'t', 'middle':'ctr', True:'t', False:'ctr'}
+            if 'dominant-baseline' in keys:
+                anchor = dict[e.get('dominant-baseline')]
+            elif 'dy' in keys:
+                em = float(re.findall(".\d+", e.get('dy'))[0]) > 0.5
+                anchor = dict[em]
+            else:
+                anchor = 'ctr'
+            return anchor
+
+        def txt_align():
+            if 'text-anchor' in keys:
+                dict = {'end':'r', 'middle':'ctr', 'start':'l'}
+                align = dict[e.get('text-anchor')]
+            else:
+                align = 'l'
+            return align
+
         if not e.text:
             return
         shp = shape('rect', self.x(e.get('x', 0)), self.y(e.get('y', 0)), self.x(0), self.y(0))
@@ -129,17 +148,24 @@ class Draw(object):
                 a.scene3d(a.camera(a.rot(lat='0', lon='0',
                     rev=str(abs(int(key[(key.find('rotate')+7):-1].split()[0])*60000))),
                     prst='orthographicFront'), a.lightRig(rig='threePt', dir='t')),
-                anchor='ctr', wrap='none'),
-            a.p(a.pPr(algn='r'),
+                anchor=txt_anchor(), wrap='none'),
+            a.p(a.pPr(algn=txt_align()),
                 a.r(a.t(e.text)))))
+
         elif 'font-size' in keys:
             shp.append(p.txBody(a.bodyPr(anchor='ctr', wrap='none'),
-            a.p(a.pPr(algn='r' if 'text-anchor' in keys else 'l'), a.r(a.rPr(lang='en-US', sz=str(int(float(e.get('font-size'))*100)), dirty='0', smtClean='0'),
+            a.p(a.pPr(algn=txt_align()), a.r(a.rPr(lang='en-US', sz=str(int(float(e.get('font-size'))*100)), dirty='0', smtClean='0'),
                     a.t(e.text)))))
+        elif 'fill' in keys:
+            shp.append(p.txBody(a.bodyPr(a.normAutofit(fontScale="62500", lnSpcReduction="20000"),
+                anchor=txt_anchor(), wrap='none'),
+            a.p(a.pPr(algn=txt_align()),
+                a.r(a.rPr( a.solidFill(color(srgbClr=msclr(e.get('fill')))),
+                    lang='en-US', dirty='0', smtClean='0'),a.t(e.text)))))
         else:
             shp.append(p.txBody(a.bodyPr(a.normAutofit(fontScale="62500", lnSpcReduction="20000"),
-                anchor='ctr', wrap='none'),
-            a.p(a.pPr(algn='ctr'),
+                anchor=txt_anchor(), wrap='none'),
+            a.p(a.pPr(algn=txt_align()),
                 a.r(a.t(e.text)))))
 
         self.shapes.append(shp)
@@ -194,8 +220,8 @@ class Draw(object):
             #    n += 7
 
             elif cmd == 'a':
-                stAng, swAng = xy(n)
-                wR, hR = xy(n + 5)
+                wR, hR = xy(n)
+                stAng, swAng = xy(n + 5)
                 path.append(a.arcTo(
                     wR=str(self.x(wR)), hR=str(self.y(hR)),
                     stAng=str(self.x(stAng)), swAng=str(self.y(swAng))))
