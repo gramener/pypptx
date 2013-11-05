@@ -3,17 +3,39 @@ Converts an SVG shape into a Microsoft Office object, and saves as pptx file
 
 """
 import re
+import itertools as it
 from lxml import etree
 from lxml.builder import ElementMaker
 from pypptx import a, p, shape, color, nsmap, cust_shape
 from color import rgba
 
+
 re_ns = re.compile(r'({.*?})?(.*)')
 re_path = re.compile(r'[mMzZlLhHvVcCsSqQtTaA]|[\+\-]?[\d\.e]+')
+
+def to_int(val):
+    val = ''.join(it.takewhile(str.isdigit, val))
+    return int(val)
 
 def msclr(color):
     r, g, b, a = rgba(color)
     return '%02x%02x%02x' % (255*r, 255*g, 255*b)
+
+def css_style(style):
+    attrs = []
+    e = {}
+    for x in style.split(";"):
+        attrs.append(x)
+    if '' in attrs:
+        attrs.remove('')
+
+    for i in range(len(attrs)):
+        keys, values = attrs[i].split(':')
+        key, value = keys.split('\t'), values.split('\t')
+        d = dict(zip(key, value))
+        e.update(d)
+    return e
+
 
 
 color_dict = {'circle':'FFFFFF', 'ellipse':'FFFFFF',
@@ -34,46 +56,54 @@ class Draw(object):
             tag = function.__name__
             keys = e.keys()
 
+            def styles(keys):
+                def clr_grad(color):
+                    if color.startswith('rgba('):
+                        r, g, b, a = rgba(color)
+                        return  '%d' % int((1 - a)*100000 if a < 1 else 100000)
+                    elif 'opacity' in keys:
+                        return '%d' % int((1 - float(e.get('opacity'))) * 100000)
+                    else:
+                        return '%d' % 100000
 
-            def clr_grad(color):
-                if color.startswith('rgba('):
-                    r, g, b, a = rgba(color)
-                    return  '%d' % int((1 - a)*100000 if a < 1 else 100000)
-                elif 'opacity' in keys:
-                    return '%d' % int((1 - float(e.get('opacity'))) * 100000)
-                else:
-                    return '%d' % 100000
 
-
-            # TODO: Optimize
-            if 'fill' in keys:
-                if e.get('fill') == 'none':
-                    shape.spPr.append(a.noFill())
-                else:
-                    shape.spPr.append(a.solidFill(a.srgbClr(a.alpha(val=str(clr_grad(e.get('fill')))), 
-                        val=str(msclr(e.get('fill'))))))
-            elif not 'fill' in keys:
-                if tag in ['line']:
+                # TODO: Optimize
+                if 'fill' in keys:
+                    if e.get('fill') == 'none':
+                        shape.spPr.append(a.noFill())
+                    else:
+                        shape.spPr.append(a.solidFill(a.srgbClr(a.alpha(val=str(clr_grad(e.get('fill')))), 
+                            val=str(msclr(e.get('fill'))))))
+                elif not 'fill' in keys:
+                    if tag in ['line']:
+                        shape.spPr.append(a.ln(a.solidFill(color(srgbClr='000000'))))
+                    else:
+                        shape.spPr.append(a.solidFill(color(srgbClr='000000')))
+                if 'stroke' and 'stroke-width' in keys:
+                    shape.spPr.append(a.ln(a.solidFill(color(srgbClr=msclr(e.get('stroke')))),
+                        w=str(int(float(e.get('stroke-width')))*12700/2)))                 
+                elif 'stroke' in keys:
+                    if e.get('stroke') == 'none':
+                        shape.spPr.append(a.ln(a.noFill()))
+                    else:
+                        shape.spPr.append(a.ln(a.solidFill(color(srgbClr=msclr(e.get('stroke'))))))
+                elif not 'stroke' and not 'fill' in keys:
                     shape.spPr.append(a.ln(a.solidFill(color(srgbClr='000000'))))
-                else:
-                    shape.spPr.append(a.solidFill(color(srgbClr='000000')))
-            if 'stroke' and 'stroke-width' in keys:
-                shape.spPr.append(a.ln(a.solidFill(color(srgbClr=msclr(e.get('stroke')))),
-                    w=str(int(e.get('stroke-width'))*12700/2)))                 
-            elif 'stroke' in keys:
-                if e.get('stroke') == 'none':
-                    shape.spPr.append(a.ln(a.noFill()))
-                else:
-                    shape.spPr.append(a.ln(a.solidFill(color(srgbClr=msclr(e.get('stroke'))))))
-            elif not 'stroke' and not 'fill' in keys:
-                shape.spPr.append(a.ln(a.solidFill(color(srgbClr='000000'))))
-            elif not 'stroke' and 'fill' in keys:
-                if tag in ['rect']:
-                    shape.spPr.append(a.ln(a.noFill()))
-                elif tag in ['circle','ellipse']:
-                    shape.spPr.append(a.ln(a.solidFill(color(srgbClr=msclr(e.get('fill'))))))
-                elif tag in ['path', 'line']:
-                    shape.spPr.append(a.ln(a.solidFill(color(srgbClr='000000'))))
+                elif not 'stroke' and 'fill' in keys:
+                    if tag in ['rect']:
+                        shape.spPr.append(a.ln(a.noFill()))
+                    elif tag in ['circle','ellipse']:
+                        shape.spPr.append(a.ln(a.solidFill(color(srgbClr=msclr(e.get('fill'))))))
+                    elif tag in ['path', 'line']:
+                        shape.spPr.append(a.ln(a.solidFill(color(srgbClr='000000'))))
+                return shape
+
+            if 'style' in keys:
+                e = css_style(e.get('style'))
+                keys = e.keys()
+                styles(keys)
+            else:
+                styles(keys)
 
             return shape
         return wrapped
@@ -102,10 +132,10 @@ class Draw(object):
     @_shape_attrs
     def rect(self, e):
         shp = shape('rect',
-            self.x(e.get('x', 0)),
-            self.y(e.get('y', 0)),
-            self.x(e.get('width', 0)),
-            self.y(e.get('height', 0))
+            self.x(to_int(e.get('x', 0))),
+            self.y(to_int(e.get('y', 0))),
+            self.x(to_int(e.get('width', 0))),
+            self.y(to_int(e.get('height', 0)))
         )
         self.shapes.append(shp)
         return shp
@@ -120,6 +150,7 @@ class Draw(object):
 
     def text(self, e):
         keys = e.keys()
+        txt = e.text
         def txt_anchor():
             dict = {'hanging':'t', 'middle':'ctr', True:'t', False:'ctr'}
             if 'dominant-baseline' in keys:
@@ -141,32 +172,42 @@ class Draw(object):
 
         if not e.text:
             return
-        shp = shape('rect', self.x(e.get('x', 0)), self.y(e.get('y', 0)), self.x(0), self.y(0))
-        if 'transform' in keys:
-            key = e.get('transform')
-            shp.append(p.txBody(a.bodyPr(a.normAutofit(fontScale="62500", lnSpcReduction="20000"),
-                a.scene3d(a.camera(a.rot(lat='0', lon='0',
-                    rev=str(abs(int(key[(key.find('rotate')+7):-1].split()[0])*60000))),
-                    prst='orthographicFront'), a.lightRig(rig='threePt', dir='t')),
-                anchor=txt_anchor(), wrap='none'),
-            a.p(a.pPr(algn=txt_align()),
-                a.r(a.t(e.text)))))
+        shp = shape('rect', self.x(to_int(e.get('x', 0))), self.y(to_int(e.get('y', 0))), self.x(0), self.y(0))
+        def text_style(keys, txt):
+            if 'transform' in keys:
+                key = e.get('transform')
+                shp.append(p.txBody(a.bodyPr(a.normAutofit(fontScale="62500", lnSpcReduction="20000"),
+                    a.scene3d(a.camera(a.rot(lat='0', lon='0',
+                        rev=str(abs(int(key[(key.find('rotate')+7):-1].split()[0])*60000))),
+                        prst='orthographicFront'), a.lightRig(rig='threePt', dir='t')),
+                    anchor=txt_anchor(), wrap='none'),
+                a.p(a.pPr(algn=txt_align()),
+                    a.r(a.t(txt)))))
 
-        elif 'font-size' in keys:
-            shp.append(p.txBody(a.bodyPr(anchor='ctr', wrap='none'),
-            a.p(a.pPr(algn=txt_align()), a.r(a.rPr(lang='en-US', sz=str(int(float(e.get('font-size'))*100)), dirty='0', smtClean='0'),
-                    a.t(e.text)))))
-        elif 'fill' in keys:
-            shp.append(p.txBody(a.bodyPr(a.normAutofit(fontScale="62500", lnSpcReduction="20000"),
-                anchor=txt_anchor(), wrap='none'),
-            a.p(a.pPr(algn=txt_align()),
-                a.r(a.rPr( a.solidFill(color(srgbClr=msclr(e.get('fill')))),
-                    lang='en-US', dirty='0', smtClean='0'),a.t(e.text)))))
+            elif 'font-size' in keys:
+                shp.append(p.txBody(a.bodyPr(anchor='ctr', wrap='none'),
+                a.p(a.pPr(algn=txt_align()), a.r(a.rPr(lang='en-US', sz=str(int(float(e.get('font-size'))*100)), dirty='0', smtClean='0'),
+                        a.t(txt)))))
+            elif 'fill' in keys:
+                shp.append(p.txBody(a.bodyPr(a.normAutofit(fontScale="62500", lnSpcReduction="20000"),
+                    anchor=txt_anchor(), wrap='none'),
+                a.p(a.pPr(algn=txt_align()),
+                    a.r(a.rPr( a.solidFill(color(srgbClr=msclr(e.get('fill')))),
+                        lang='en-US', dirty='0', smtClean='0'),a.t(txt)))))
+            else:
+                shp.append(p.txBody(a.bodyPr(a.normAutofit(fontScale="62500", lnSpcReduction="20000"),
+                    anchor=txt_anchor(), wrap='none'),
+                a.p(a.pPr(algn=txt_align()),
+                    a.r(a.t(txt)))))
+            return shp
+
+        if 'style' in keys:
+            txt = e.text
+            e = css_style(e.get('style'))
+            keys = e.keys()
+            text_style(keys, txt)
         else:
-            shp.append(p.txBody(a.bodyPr(a.normAutofit(fontScale="62500", lnSpcReduction="20000"),
-                anchor=txt_anchor(), wrap='none'),
-            a.p(a.pPr(algn=txt_align()),
-                a.r(a.t(e.text)))))
+            text_style(keys, txt)
 
         self.shapes.append(shp)
         return shp
