@@ -3,8 +3,7 @@ Converts an SVG shape into a Microsoft Office object, and saves as pptx file
 
 """
 import re
-import itertools as it
-from lxml import etree
+from lxml import etree, html
 from lxml.builder import ElementMaker
 from pypptx import a, p, shape, color, nsmap, cust_shape
 from color import rgba
@@ -13,27 +12,35 @@ from color import rgba
 re_ns = re.compile(r'({.*?})?(.*)')
 re_path = re.compile(r'[mMzZlLhHvVcCsSqQtTaA]|[\+\-]?[\d\.e]+')
 
-def to_int(val):
-    val = ''.join(it.takewhile(str.isdigit, val))
-    return int(val)
+def interpret_str(val):
+    if val:
+        rn = re.compile(r'([\d\.-]+)')
+        match = rn.search(val)
+        value = match.group(1)
+        if val.startswith('-'):
+            val = str(float(value) - float(value))
+        elif val.endswith('%'):
+            val = str(int(value) * 0.2)
+        elif val.endswith('em'):
+            val = str(value * 10 + 8)
+        elif val.endswith('pt'):
+            val = str(int(value + 6))
+        else:
+            val = value
+    return val
 
 def msclr(color):
     r, g, b, a = rgba(color)
     return '%02x%02x%02x' % (255*r, 255*g, 255*b)
 
 def css_style(style):
-    attrs = []
     e = {}
-    for x in style.split(";"):
-        attrs.append(x)
-    if '' in attrs:
-        attrs.remove('')
+    attrs = [x for x in style.split(";") if x != '']
 
-    for i in range(len(attrs)):
-        keys, values = attrs[i].split(':')
-        key, value = keys.split('\t'), values.split('\t')
-        d = dict(zip(key, value))
-        e.update(d)
+    for attr in attrs:
+        keys, values = attr.split(':')
+        key, value = keys.split(), values.split()
+        e.update(dict(zip(key, value)))
     return e
 
 
@@ -52,9 +59,11 @@ class Draw(object):
 
     def _shape_attrs(function):
         def wrapped(self, e):
+            par = e.getparent()
             shape = function(self, e)
             tag = function.__name__
             keys = e.keys()
+
 
             def styles(keys):
                 def clr_grad(color):
@@ -75,19 +84,22 @@ class Draw(object):
                         shape.spPr.append(a.solidFill(a.srgbClr(a.alpha(val=str(clr_grad(e.get('fill')))), 
                             val=str(msclr(e.get('fill'))))))
                 elif not 'fill' in keys:
-                    if tag in ['line']:
-                        shape.spPr.append(a.ln(a.solidFill(color(srgbClr='000000'))))
-                    else:
+                    if tag not in ['line']:
                         shape.spPr.append(a.solidFill(color(srgbClr='000000')))
+
                 if 'stroke' and 'stroke-width' in keys:
-                    shape.spPr.append(a.ln(a.solidFill(color(srgbClr=msclr(e.get('stroke')))),
-                        w=str(int(float(e.get('stroke-width')))*12700/2)))                 
+                    shape.spPr.append(a.ln(a.solidFill(a.srgbClr(a.alpha(val=str(clr_grad(e.get('stroke')))),
+                        val=str(msclr(e.get('stroke'))))),
+                        w=str(int(float(e.get('stroke-width')))*12700/2)))
+                    #shape.spPr.append(a.ln(a.solidFill(color(srgbClr=msclr(e.get('stroke')))),
+                    #    w=str(int(float(e.get('stroke-width')))*12700/2)))                 
                 elif 'stroke' in keys:
                     if e.get('stroke') == 'none':
                         shape.spPr.append(a.ln(a.noFill()))
                     else:
-                        shape.spPr.append(a.ln(a.solidFill(color(srgbClr=msclr(e.get('stroke'))))))
-                elif not 'stroke' and not 'fill' in keys:
+                        shape.spPr.append(a.ln(a.solidFill(a.srgbClr(a.alpha(val=str(clr_grad(e.get('stroke')))), val=str(msclr(e.get('stroke')))))))
+                        #shape.spPr.append(a.ln(a.solidFill(color(srgbClr=msclr(e.get('stroke'))))))
+                elif 'stroke' and 'fill' not in keys:
                     shape.spPr.append(a.ln(a.solidFill(color(srgbClr='000000'))))
                 elif not 'stroke' and 'fill' in keys:
                     if tag in ['rect']:
@@ -102,6 +114,10 @@ class Draw(object):
                 e = css_style(e.get('style'))
                 keys = e.keys()
                 styles(keys)
+            #elif par.tag == 'g':
+            #    e = par
+            #    keys = e.keys()
+            #    styles(keys)
             else:
                 styles(keys)
 
@@ -132,10 +148,10 @@ class Draw(object):
     @_shape_attrs
     def rect(self, e):
         shp = shape('rect',
-            self.x(to_int(e.get('x', 0))),
-            self.y(to_int(e.get('y', 0))),
-            self.x(to_int(e.get('width', 0))),
-            self.y(to_int(e.get('height', 0)))
+            self.x(interpret_str(e.get('x', 0))),
+            self.y(interpret_str(e.get('y', 0))),
+            self.x(interpret_str(e.get('width', 0))),
+            self.y(interpret_str(e.get('height', 0)))
         )
         self.shapes.append(shp)
         return shp
@@ -164,7 +180,7 @@ class Draw(object):
 
         def txt_align():
             if 'text-anchor' in keys:
-                dict = {'end':'r', 'middle':'ctr', 'start':'l'}
+                dict = {'end':'r', 'middle':'ctr', 'start':'l', 'left':'l'}
                 align = dict[e.get('text-anchor')]
             else:
                 align = 'l'
@@ -172,7 +188,7 @@ class Draw(object):
 
         if not e.text:
             return
-        shp = shape('rect', self.x(to_int(e.get('x', 0))), self.y(to_int(e.get('y', 0))), self.x(0), self.y(0))
+        shp = shape('rect', self.x(interpret_str(e.get('x', 0))), self.y(interpret_str(e.get('y', 0))), self.x(0), self.y(0))
         def text_style(keys, txt):
             if 'transform' in keys:
                 key = e.get('transform')
@@ -186,7 +202,7 @@ class Draw(object):
 
             elif 'font-size' in keys:
                 shp.append(p.txBody(a.bodyPr(anchor='ctr', wrap='none'),
-                a.p(a.pPr(algn=txt_align()), a.r(a.rPr(lang='en-US', sz=str(int(float(e.get('font-size'))*100)), dirty='0', smtClean='0'),
+                a.p(a.pPr(algn=txt_align()), a.r(a.rPr(lang='en-US', sz=str(int(float(interpret_str(e.get('font-size')))*100)), dirty='0', smtClean='0'),
                         a.t(txt)))))
             elif 'fill' in keys:
                 shp.append(p.txBody(a.bodyPr(a.normAutofit(fontScale="62500", lnSpcReduction="20000"),
@@ -304,7 +320,8 @@ if __name__ == '__main__':
     parser.add_argument('svgfile')
     args = parser.parse_args()
 
-    tree = etree.parse(open(args.svgfile))
+    tree = html.parse(open(args.svgfile))
+    #tree = etree.parse(open(args.svgfile))
 
     from pptx import Presentation
 
