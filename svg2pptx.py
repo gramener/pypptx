@@ -5,7 +5,7 @@ Converts an SVG shape into a Microsoft Office object, and saves as pptx file
 import re
 from lxml import etree, html
 from lxml.builder import ElementMaker
-from pypptx import a, p, shape, color, nsmap, cust_shape
+from pypptx import a, p, shape, color, nsmap, cust_shape, cust_table
 from color import rgba
 
 
@@ -18,9 +18,9 @@ def interpret_str(val):
         match = rn.search(val)
         value = match.group(1)
         if val.startswith('-'):
-            val = str(float(value) - float(value))
+            val = str(0)
         elif val.endswith('%'):
-            val = str(int(value) * 0.2)
+            val = str(int(value) * 0.12)
         elif val.endswith('em'):
             val = str(value * 10 + 8)
         elif val.endswith('pt'):
@@ -45,10 +45,6 @@ def css_style(style):
 
 
 
-color_dict = {'circle':'FFFFFF', 'ellipse':'FFFFFF',
-              'line':'000000', 'path':'000000',
-              'rect':'FFFFFF'}
-
 class Draw(object):
     def __init__(self, slide, width, height):
         self.slide = slide
@@ -63,15 +59,15 @@ class Draw(object):
             shape = function(self, e)
             tag = function.__name__
             keys = e.keys()
-
+              
 
             def styles(keys):
                 def clr_grad(color):
                     if color.startswith('rgba('):
                         r, g, b, a = rgba(color)
-                        return  '%d' % int((1 - a)*100000 if a < 1 else 100000)
+                        return  '%d' % int(a*100000)
                     elif 'opacity' in keys:
-                        return '%d' % int((1 - float(e.get('opacity'))) * 100000)
+                        return '%d' % int(float(e.get('opacity')) * 100000)
                     else:
                         return '%d' % 100000
 
@@ -90,7 +86,7 @@ class Draw(object):
                 if 'stroke' and 'stroke-width' in keys:
                     shape.spPr.append(a.ln(a.solidFill(a.srgbClr(a.alpha(val=str(clr_grad(e.get('stroke')))),
                         val=str(msclr(e.get('stroke'))))),
-                        w=str(int(float(e.get('stroke-width')))*12700/2)))
+                        w=str(int(float(interpret_str(e.get('stroke-width')))*12700))))
                     #shape.spPr.append(a.ln(a.solidFill(color(srgbClr=msclr(e.get('stroke')))),
                     #    w=str(int(float(e.get('stroke-width')))*12700/2)))                 
                 elif 'stroke' in keys:
@@ -114,7 +110,7 @@ class Draw(object):
                 e = css_style(e.get('style'))
                 keys = e.keys()
                 styles(keys)
-            #elif par.tag == 'g':
+            #if par.tag == 'g':
             #    e = par
             #    keys = e.keys()
             #    styles(keys)
@@ -158,22 +154,29 @@ class Draw(object):
 
     @_shape_attrs
     def line(self, e):
-        x1, y1 = self.x(e.get('x1', 0)), self.y(e.get('y1', 0))
-        x2, y2 = self.x(e.get('x2', 0)), self.y(e.get('y2', 0))
-        shp = shape('line', x1, y1, x2 - x1, y2 - y1)
+        x1, y1 = self.x(interpret_str(e.get('x1', 0))), self.y(interpret_str(e.get('y1', 0)))
+        x2, y2 = self.x(interpret_str(e.get('x2', 0))), self.y(interpret_str(e.get('y2', 0)))
+        ax1 = x1 if x2 > x1 else x2
+        ax2 = x2 if x1 < x2 else x1
+        ay1 = y1 if y2 > y1 else y2
+        ay2 = y2 if y1 < y2 else y1
+        shp = shape('line', ax1, ay1, ax2-ax1, ay2-ay1)
         self.shapes.append(shp)
         return shp
 
     def text(self, e):
+        print e
         keys = e.keys()
         txt = e.text
         def txt_anchor():
-            dict = {'hanging':'t', 'middle':'ctr', True:'t', False:'ctr'}
+            dict = {'hanging':'t', 'middle':'ctr', True:'t', False:'ctr', 'left':'ctr'}
             if 'dominant-baseline' in keys:
                 anchor = dict[e.get('dominant-baseline')]
             elif 'dy' in keys:
                 em = float(re.findall(".\d+", e.get('dy'))[0]) > 0.5
                 anchor = dict[em]
+            elif 'text-anchor' in keys:
+                anchor = dict[e.get('text-anchor')]
             else:
                 anchor = 'ctr'
             return anchor
@@ -190,8 +193,13 @@ class Draw(object):
             return
         shp = shape('rect', self.x(interpret_str(e.get('x', 0))), self.y(interpret_str(e.get('y', 0))), self.x(0), self.y(0))
         def text_style(keys, txt):
+
+            bold = '1' if 'font-weight' in keys else '0'
+
+
             if 'transform' in keys:
                 key = e.get('transform')
+                print key
                 shp.append(p.txBody(a.bodyPr(a.normAutofit(fontScale="62500", lnSpcReduction="20000"),
                     a.scene3d(a.camera(a.rot(lat='0', lon='0',
                         rev=str(abs(int(key[(key.find('rotate')+7):-1].split()[0])*60000))),
@@ -201,15 +209,18 @@ class Draw(object):
                     a.r(a.t(txt)))))
 
             elif 'font-size' in keys:
-                shp.append(p.txBody(a.bodyPr(anchor='ctr', wrap='none'),
-                a.p(a.pPr(algn=txt_align()), a.r(a.rPr(lang='en-US', sz=str(int(float(interpret_str(e.get('font-size')))*100)), dirty='0', smtClean='0'),
+                shp.append(p.txBody(a.bodyPr(anchor=txt_anchor(), wrap='none'),
+                a.p(a.pPr(algn=txt_align()), a.r(a.rPr(lang='en-US', sz=str(int(float(interpret_str(e.get('font-size')))*100)), b=bold, dirty='0', smtClean='0'),
                         a.t(txt)))))
+
             elif 'fill' in keys:
+                print e.get('fill')
                 shp.append(p.txBody(a.bodyPr(a.normAutofit(fontScale="62500", lnSpcReduction="20000"),
                     anchor=txt_anchor(), wrap='none'),
                 a.p(a.pPr(algn=txt_align()),
                     a.r(a.rPr( a.solidFill(color(srgbClr=msclr(e.get('fill')))),
                         lang='en-US', dirty='0', smtClean='0'),a.t(txt)))))
+
             else:
                 shp.append(p.txBody(a.bodyPr(a.normAutofit(fontScale="62500", lnSpcReduction="20000"),
                     anchor=txt_anchor(), wrap='none'),
@@ -227,6 +238,34 @@ class Draw(object):
 
         self.shapes.append(shp)
         return shp
+
+    def table(self, e):
+        thead = e.xpath('//table//th')
+        #th_len = len(th)
+        #th_tr = e.xpath('//table//thead//tr')
+        #if th_tr: 
+        #    print th_tr
+        #tbl_tr = e.xpath('//table//tbody//tr')
+        #if tbl_tr:
+        #    print tbl_tr
+
+        # cust_table(x, y, cx, cy)
+
+        #shp = cust_table('464016', '1397000', '8188664', '1982034' )
+        gridcol = []
+        for th in thead:
+            gc = a.gridCol(w="744424")
+            #gridcol.append(gc)
+            #print a.tblGrid(gc for gc in thead)
+        print gridcol
+        #shp.find('.//a:tbl', namespaces=nsmap).append(a.tblGrid(gridcol))
+        #self.shapes.append(shp)
+        #return shp
+
+
+        #tr = th + td
+        #for text in tr:
+        #    print text.text
 
     @_shape_attrs
     def path(self, e):
@@ -323,9 +362,11 @@ if __name__ == '__main__':
     tree = html.parse(open(args.svgfile))
     #tree = etree.parse(open(args.svgfile))
 
+
     from pptx import Presentation
 
-    Presentation = Presentation()
+    # 'Bigger.pptx': Custom slide Size, save the presentation of required size, usage: Presentatoin(path ot custom pptx)
+    Presentation = Presentation('bigger.pptx')
     blank_slidelayout = Presentation.slidelayouts[6]
     slide = Presentation.slides.add_slide(blank_slidelayout)
 
