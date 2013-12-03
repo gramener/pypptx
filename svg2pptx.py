@@ -29,6 +29,7 @@ def interpret_str(val):
             val = value
     return val
 
+
 def msclr(color):
     r, g, b, a = rgba(color)
     return '%02x%02x%02x' % (255*r, 255*g, 255*b)
@@ -44,6 +45,24 @@ def css_style(style):
     return e
 
 
+def tag_attrs(keys, values, e):
+    parent = e.getparent()
+    attrs_dict = dict(zip(keys, values))
+    if 'style' in keys:
+        del attrs_dict['style']
+        style_dict = css_style(e.get('style'))
+        attrs_dict.update(style_dict)
+        if parent.tag == 'g':
+            g_keys = parent.keys()
+            values = parent.values()
+            g_dict = dict(zip(g_keys, values))
+            attrs_dict.update(g_dict)
+            if 'style' in g_keys:
+                del g_dict['style']
+                g_attrs_dict = css_style(parent.get('style'))
+                attrs_dict.update(g_attrs_dict)
+    return attrs_dict
+
 
 class Draw(object):
     def __init__(self, slide, width, height):
@@ -55,11 +74,10 @@ class Draw(object):
 
     def _shape_attrs(function):
         def wrapped(self, e):
-            par = e.getparent()
             shape = function(self, e)
             tag = function.__name__
             keys = e.keys()
-              
+            values = e.values()
 
             def styles(keys):
                 def clr_grad(color):
@@ -83,7 +101,7 @@ class Draw(object):
                     if tag not in ['line']:
                         shape.spPr.append(a.solidFill(color(srgbClr='000000')))
 
-                if 'stroke' and 'stroke-width' in keys:
+                if 'stroke' in keys and 'stroke-width' in keys:
                     shape.spPr.append(a.ln(a.solidFill(a.srgbClr(a.alpha(val=str(clr_grad(e.get('stroke')))),
                         val=str(msclr(e.get('stroke'))))),
                         w=str(int(float(interpret_str(e.get('stroke-width')))*12700))))
@@ -106,16 +124,10 @@ class Draw(object):
                         shape.spPr.append(a.ln(a.solidFill(color(srgbClr='000000'))))
                 return shape
 
-            if 'style' in keys:
-                e = css_style(e.get('style'))
-                keys = e.keys()
-                styles(keys)
-            #if par.tag == 'g':
-            #    e = par
-            #    keys = e.keys()
-            #    styles(keys)
-            else:
-                styles(keys)
+
+            e = tag_attrs(keys, values, e)
+            keys = e.keys()
+            styles(keys)
 
             return shape
         return wrapped
@@ -143,7 +155,9 @@ class Draw(object):
 
     @_shape_attrs
     def rect(self, e):
-        shp = shape('rect',
+        keys = e.keys()
+        shp_name = 'roundRect' if 'rx' in keys and 'ry' in keys else 'rect'
+        shp = shape(shp_name,
             self.x(interpret_str(e.get('x', 0))),
             self.y(interpret_str(e.get('y', 0))),
             self.x(interpret_str(e.get('width', 0))),
@@ -165,26 +179,26 @@ class Draw(object):
         return shp
 
     def text(self, e):
-        print e
         keys = e.keys()
+        values = e.values()
         txt = e.text
         def txt_anchor():
-            dict = {'hanging':'t', 'middle':'ctr', True:'t', False:'ctr', 'left':'ctr'}
+            anchor_dict = {'hanging':'t', 'middle':'ctr', True:'t', False:'ctr', 'left':'ctr'}
             if 'dominant-baseline' in keys:
-                anchor = dict[e.get('dominant-baseline')]
+                anchor = anchor_dict[e.get('dominant-baseline')]
             elif 'dy' in keys:
                 em = float(re.findall(".\d+", e.get('dy'))[0]) > 0.5
-                anchor = dict[em]
+                anchor = anchor_dict[em]
             elif 'text-anchor' in keys:
-                anchor = dict[e.get('text-anchor')]
+                anchor = anchor_dict[e.get('text-anchor')]
             else:
                 anchor = 'ctr'
             return anchor
 
         def txt_align():
             if 'text-anchor' in keys:
-                dict = {'end':'r', 'middle':'ctr', 'start':'l', 'left':'l'}
-                align = dict[e.get('text-anchor')]
+                align_dict = {'end':'r', 'middle':'ctr', 'start':'l', 'left':'l'}
+                align = align_dict[e.get('text-anchor')]
             else:
                 align = 'l'
             return align
@@ -196,11 +210,23 @@ class Draw(object):
 
             bold = '1' if 'font-weight' in keys else '0'
 
+            fill_text_ml = a.solidFill(color(srgbClr=msclr(e.get('fill') if 'fill' in keys else 'black')))
 
-            if 'transform' in keys:
+            autofit_ml = a.normAutofit(fontScale="62500", lnSpcReduction="20000")
+
+            if 'font-size' in keys and 'transform' in keys:
                 key = e.get('transform')
-                print key
-                shp.append(p.txBody(a.bodyPr(a.normAutofit(fontScale="62500", lnSpcReduction="20000"),
+                shp.append(p.txBody(a.bodyPr(a.scene3d(a.camera(a.rot(lat='0', lon='0',
+                        rev=str(abs(int(key[(key.find('rotate')+7):-1].split()[0])*60000))),
+                        prst='orthographicFront'), a.lightRig(rig='threePt', dir='t')),
+                    anchor=txt_anchor(), wrap='none'),
+                a.p(a.pPr(algn=txt_align()),
+                    a.r(a.rPr(fill_text_ml, lang='en-US', sz=str(int(float(interpret_str(e.get('font-size')))*100)), b=bold, dirty='0', smtClean='0'), 
+                        a.t(txt)))))
+
+            elif 'transform' in keys:
+                key = e.get('transform')
+                shp.append(p.txBody(a.bodyPr(autofit_ml,
                     a.scene3d(a.camera(a.rot(lat='0', lon='0',
                         rev=str(abs(int(key[(key.find('rotate')+7):-1].split()[0])*60000))),
                         prst='orthographicFront'), a.lightRig(rig='threePt', dir='t')),
@@ -210,31 +236,17 @@ class Draw(object):
 
             elif 'font-size' in keys:
                 shp.append(p.txBody(a.bodyPr(anchor=txt_anchor(), wrap='none'),
-                a.p(a.pPr(algn=txt_align()), a.r(a.rPr(lang='en-US', sz=str(int(float(interpret_str(e.get('font-size')))*100)), b=bold, dirty='0', smtClean='0'),
+                a.p(a.pPr(algn=txt_align()), a.r(a.rPr(fill_text_ml, lang='en-US', sz=str(int(float(interpret_str(e.get('font-size')))*100)), b=bold, dirty='0', smtClean='0'),
                         a.t(txt)))))
 
-            elif 'fill' in keys:
-                print e.get('fill')
-                shp.append(p.txBody(a.bodyPr(a.normAutofit(fontScale="62500", lnSpcReduction="20000"),
-                    anchor=txt_anchor(), wrap='none'),
-                a.p(a.pPr(algn=txt_align()),
-                    a.r(a.rPr( a.solidFill(color(srgbClr=msclr(e.get('fill')))),
-                        lang='en-US', dirty='0', smtClean='0'),a.t(txt)))))
-
             else:
-                shp.append(p.txBody(a.bodyPr(a.normAutofit(fontScale="62500", lnSpcReduction="20000"),
-                    anchor=txt_anchor(), wrap='none'),
-                a.p(a.pPr(algn=txt_align()),
-                    a.r(a.t(txt)))))
+                shp.append(p.txBody(a.bodyPr(autofit_ml, anchor=txt_anchor(), wrap='none'),
+                    a.p(a.pPr(algn=txt_align()), a.r(a.t(txt)))))
             return shp
 
-        if 'style' in keys:
-            txt = e.text
-            e = css_style(e.get('style'))
-            keys = e.keys()
-            text_style(keys, txt)
-        else:
-            text_style(keys, txt)
+        e = tag_attrs(keys, values, e)
+        keys = e.keys()
+        text_style(keys, txt)
 
         self.shapes.append(shp)
         return shp
@@ -252,12 +264,14 @@ class Draw(object):
         # cust_table(x, y, cx, cy)
 
         #shp = cust_table('464016', '1397000', '8188664', '1982034' )
-        gridcol = []
-        for th in thead:
-            gc = a.gridCol(w="744424")
-            #gridcol.append(gc)
-            #print a.tblGrid(gc for gc in thead)
-        print gridcol
+        #gridcol = ()
+        #for th in thead:
+        #    gc = a.gridCol(w="744424")
+        #    gridcol = gridcol + (gc,)
+        #    #gridcol.append(gc)
+        #    #print a.tblGrid(gc for gc in thead)
+        #pp =  a.tblGrid(gridcol)
+        #print pp
         #shp.find('.//a:tbl', namespaces=nsmap).append(a.tblGrid(gridcol))
         #self.shapes.append(shp)
         #return shp
