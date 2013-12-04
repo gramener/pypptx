@@ -362,8 +362,8 @@ if __name__ == '__main__':
 
     from pptx import Presentation
 
-    # 'Bigger.pptx': Custom slide Size, save the presentation of required size, usage: Presentatoin(path ot custom pptx)
-    Presentation = Presentation('bigger.pptx')
+    # 'layout15x12.pptx': Custom slide Size, save the presentation of required size, usage: Presentatoin(path ot custom pptx)
+    Presentation = Presentation('layout15x12.pptx')
     blank_slidelayout = Presentation.slidelayouts[6]
     slide = Presentation.slides.add_slide(blank_slidelayout)
 
