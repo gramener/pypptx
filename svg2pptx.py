@@ -105,8 +105,6 @@ class Draw(object):
                     shape.spPr.append(a.ln(a.solidFill(a.srgbClr(a.alpha(val=str(clr_grad(e.get('stroke')))),
                         val=str(msclr(e.get('stroke'))))),
                         w=str(int(float(interpret_str(e.get('stroke-width')))*12700))))
-                    #shape.spPr.append(a.ln(a.solidFill(color(srgbClr=msclr(e.get('stroke')))),
-                    #    w=str(int(float(e.get('stroke-width')))*12700/2)))                 
                 elif 'stroke' in keys:
                     if e.get('stroke') == 'none':
                         shape.spPr.append(a.ln(a.noFill()))
@@ -206,6 +204,10 @@ class Draw(object):
         if not e.text:
             return
         shp = shape('rect', self.x(interpret_str(e.get('x', 0))), self.y(interpret_str(e.get('y', 0))), self.x(0), self.y(0))
+        if 'transform' in keys:
+            t_key = e.get('transform')
+            rotate = str(int(t_key[(t_key.find('rotate')+7):-1].split()[0])*60000)
+            shp.find('.//a:xfrm', namespaces=nsmap).set('rot', rotate)
         def text_style(keys, txt):
 
             bold = '1' if 'font-weight' in keys else '0'
@@ -214,27 +216,8 @@ class Draw(object):
 
             autofit_ml = a.normAutofit(fontScale="62500", lnSpcReduction="20000")
 
-            if 'font-size' in keys and 'transform' in keys:
-                key = e.get('transform')
-                shp.append(p.txBody(a.bodyPr(a.scene3d(a.camera(a.rot(lat='0', lon='0',
-                        rev=str(abs(int(key[(key.find('rotate')+7):-1].split()[0])*60000))),
-                        prst='orthographicFront'), a.lightRig(rig='threePt', dir='t')),
-                    anchor=txt_anchor(), wrap='none'),
-                a.p(a.pPr(algn=txt_align()),
-                    a.r(a.rPr(fill_text_ml, lang='en-US', sz=str(int(float(interpret_str(e.get('font-size')))*100)), b=bold, dirty='0', smtClean='0'), 
-                        a.t(txt)))))
 
-            elif 'transform' in keys:
-                key = e.get('transform')
-                shp.append(p.txBody(a.bodyPr(autofit_ml,
-                    a.scene3d(a.camera(a.rot(lat='0', lon='0',
-                        rev=str(abs(int(key[(key.find('rotate')+7):-1].split()[0])*60000))),
-                        prst='orthographicFront'), a.lightRig(rig='threePt', dir='t')),
-                    anchor=txt_anchor(), wrap='none'),
-                a.p(a.pPr(algn=txt_align()),
-                    a.r(a.t(txt)))))
-
-            elif 'font-size' in keys:
+            if 'font-size' in keys:
                 shp.append(p.txBody(a.bodyPr(anchor=txt_anchor(), wrap='none'),
                 a.p(a.pPr(algn=txt_align()), a.r(a.rPr(fill_text_ml, lang='en-US', sz=str(int(float(interpret_str(e.get('font-size')))*100)), b=bold, dirty='0', smtClean='0'),
                         a.t(txt)))))
