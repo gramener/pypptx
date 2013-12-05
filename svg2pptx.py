@@ -52,15 +52,15 @@ def tag_attrs(keys, values, e):
         del attrs_dict['style']
         style_dict = css_style(e.get('style'))
         attrs_dict.update(style_dict)
-        if parent.tag == 'g':
-            g_keys = parent.keys()
-            values = parent.values()
-            g_dict = dict(zip(g_keys, values))
-            attrs_dict.update(g_dict)
-            if 'style' in g_keys:
-                del g_dict['style']
-                g_attrs_dict = css_style(parent.get('style'))
-                attrs_dict.update(g_attrs_dict)
+    if parent.tag == 'g':
+        g_keys = parent.keys()
+        values = parent.values()
+        g_dict = dict(zip(g_keys, values))
+        attrs_dict.update(g_dict)
+        if 'style' in g_keys:
+            del g_dict['style']
+            g_attrs_dict = css_style(parent.get('style'))
+            attrs_dict.update(g_attrs_dict)
     return attrs_dict
 
 
@@ -75,6 +75,13 @@ class Draw(object):
     def _shape_attrs(function):
         def wrapped(self, e):
             shape = function(self, e)
+            # TODO: tooltip
+            # child = [x.tag for x in e.getchildren()]
+            # title_text = [x.text for x in e.getchildren()]
+            # if 'title' in child:
+            #     shape.find('.//a:cNvPr', namespaces=nsmap).append(
+            #         a.hlinkClick, action="ppaction://hlinksldjump", tooltip=title_text)
+            #     print title_text
             tag = function.__name__
             keys = e.keys()
             values = e.values()
@@ -110,7 +117,6 @@ class Draw(object):
                         shape.spPr.append(a.ln(a.noFill()))
                     else:
                         shape.spPr.append(a.ln(a.solidFill(a.srgbClr(a.alpha(val=str(clr_grad(e.get('stroke')))), val=str(msclr(e.get('stroke')))))))
-                        #shape.spPr.append(a.ln(a.solidFill(color(srgbClr=msclr(e.get('stroke'))))))
                 elif 'stroke' and 'fill' not in keys:
                     shape.spPr.append(a.ln(a.solidFill(color(srgbClr='000000'))))
                 elif not 'stroke' and 'fill' in keys:
@@ -246,18 +252,17 @@ class Draw(object):
 
         # cust_table(x, y, cx, cy)
 
-        #shp = cust_table('464016', '1397000', '8188664', '1982034' )
-        #gridcol = ()
-        #for th in thead:
-        #    gc = a.gridCol(w="744424")
-        #    gridcol = gridcol + (gc,)
-        #    #gridcol.append(gc)
-        #    #print a.tblGrid(gc for gc in thead)
+        shp = cust_table('464016', '1397000', '8188664', '1982034' )
+        gridcol = []
+        for th in thead:
+            gc = a.gridCol(w="744424")
+            gridcol.append(gc)
+            
         #pp =  a.tblGrid(gridcol)
         #print pp
-        #shp.find('.//a:tbl', namespaces=nsmap).append(a.tblGrid(gridcol))
-        #self.shapes.append(shp)
-        #return shp
+        shp.find('.//a:tbl', namespaces=nsmap).append(a.tblGrid(gridcol))
+        self.shapes.append(shp)
+        return shp
 
 
         #tr = th + td
@@ -362,8 +367,8 @@ if __name__ == '__main__':
 
     from pptx import Presentation
 
-    # 'layout15x12.pptx': Custom slide Size, save the presentation of required size, usage: Presentatoin(path ot custom pptx)
-    Presentation = Presentation('layout15x12.pptx')
+    # 'Bigger.pptx': Custom slide Size, save the presentation of required size, usage: Presentatoin(path ot custom pptx)
+    Presentation = Presentation('bigger.pptx')
     blank_slidelayout = Presentation.slidelayouts[6]
     slide = Presentation.slides.add_slide(blank_slidelayout)
 
