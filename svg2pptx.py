@@ -1,5 +1,7 @@
 """
-Converts an SVG shape into a Microsoft Office object, and saves as pptx file
+Converts an SVG shape into a Microsoft Office object, and saves as .pptx
+
+Usage: python svg2pptx.py filename.svg
 
 """
 import re
@@ -63,6 +65,18 @@ def tag_attrs(keys, values, e):
             attrs_dict.update(g_attrs_dict)
     return attrs_dict
 
+def translate(e):
+    gtag = e.xpath('ancestor::*/@transform')
+    atag = e.get('transform')
+    if atag is not None and atag.startswith('translate'):
+        xy = re.findall('\d*\.?\d+', atag)
+        x, y = xy[0], xy[1]
+    elif gtag:
+        xy = re.findall('\d*\.?\d+', gtag[-1])
+        x, y = xy[0], xy[1]
+    else:
+        x, y = 0, 0
+    return x, y
 
 class Draw(object):
     def __init__(self, slide, width, height):
@@ -159,11 +173,14 @@ class Draw(object):
 
     @_shape_attrs
     def rect(self, e):
+        ax, ay = translate(e)
+        x = float(interpret_str(e.get('x', 0))) + float(ax)
+        y = float(interpret_str(e.get('y', 0))) + float(ay)
         keys = e.keys()
         shp_name = 'roundRect' if 'rx' in keys and 'ry' in keys else 'rect'
         shp = shape(shp_name,
-            self.x(interpret_str(e.get('x', 0))),
-            self.y(interpret_str(e.get('y', 0))),
+            self.x(x),
+            self.y(y),
             self.x(interpret_str(e.get('width', 0))),
             self.y(interpret_str(e.get('height', 0)))
         )
@@ -172,8 +189,11 @@ class Draw(object):
 
     @_shape_attrs
     def line(self, e):
-        x1, y1 = self.x(interpret_str(e.get('x1', 0))), self.y(interpret_str(e.get('y1', 0)))
-        x2, y2 = self.x(interpret_str(e.get('x2', 0))), self.y(interpret_str(e.get('y2', 0)))
+        ax, ay = translate(e)
+        x1 = self.x(float(interpret_str(e.get('x1', 0))) + float(ax))
+        y1 = self.y(float(interpret_str(e.get('y1', 0))) + float(ay))
+        x2 = self.x(float(interpret_str(e.get('x2', 0))) + float(ax))
+        y2 = self.y(float(interpret_str(e.get('y2', 0))) + float(ay))
         ax1 = x1 if x2 > x1 else x2
         ax2 = x2 if x1 < x2 else x1
         ay1 = y1 if y2 > y1 else y2
@@ -209,7 +229,10 @@ class Draw(object):
 
         if not e.text:
             return
-        shp = shape('rect', self.x(interpret_str(e.get('x', 0))), self.y(interpret_str(e.get('y', 0))), self.x(0), self.y(0))
+        ax, ay = translate(e)
+        x = float(interpret_str(e.get('x', 0))) + float(ax)
+        y = float(interpret_str(e.get('y', 0))) + float(ay)
+        shp = shape('rect', self.x(x), self.y(y), self.x(0), self.y(0))
         if 'transform' in keys:
             t_key = e.get('transform')
             rotate = str(int(t_key[(t_key.find('rotate')+7):-1].split()[0])*60000)
@@ -252,17 +275,17 @@ class Draw(object):
 
         # cust_table(x, y, cx, cy)
 
-        shp = cust_table('464016', '1397000', '8188664', '1982034' )
-        gridcol = []
-        for th in thead:
-            gc = a.gridCol(w="744424")
-            gridcol.append(gc)
+        #shp = cust_table('464016', '1397000', '8188664', '1982034' )
+        #gridcol = []
+        #for th in thead:
+        #    gc = a.gridCol(w="744424")
+        #    gridcol.append(gc)
             
         #pp =  a.tblGrid(gridcol)
         #print pp
-        shp.find('.//a:tbl', namespaces=nsmap).append(a.tblGrid(gridcol))
-        self.shapes.append(shp)
-        return shp
+        #shp.find('.//a:tbl', namespaces=nsmap).append(a.tblGrid(gridcol))
+        #self.shapes.append(shp)
+        #return shp
 
 
         #tr = th + td
@@ -274,14 +297,13 @@ class Draw(object):
         pathstr = re_path.findall(e.get('d', ''))
         n, length, cmd, relative, shp = 0, len(pathstr), None, False, None
         x1, y1 = 0, 0
-        xy = lambda n: (float(pathstr[n]) + (x1 if relative else 0),
-                        float(pathstr[n + 1]) + (y1 if relative else 0))
-
-        shp = cust_shape(x1, y1, 150000, 150000)
-        path = a.path(w="150000", h="150000")
+        ax, ay = translate(e)
+        xy = lambda n: (float(pathstr[n]) + (x1 if relative else 0) + float(ax),
+                        float(pathstr[n + 1]) + (y1 if relative else 0) + float(ay))
+        shp = cust_shape(x1, y1, 130700, 130700)
+        path = a.path(w="130700", h="130700")
         shp.find('.//a:custGeom', namespaces=nsmap).append(
             a.pathLst(path))
-
         while n < length:
             if pathstr[n].lower() in 'mzlhvcsqta':
                 cmd = pathstr[n].lower()
@@ -367,8 +389,8 @@ if __name__ == '__main__':
 
     from pptx import Presentation
 
-    # 'Bigger.pptx': Custom slide Size, save the presentation of required size, usage: Presentatoin(path ot custom pptx)
-    Presentation = Presentation('bigger.pptx')
+    # 'Bigger.pptx': Custom slide Size, usage: Presentatoin(path to custom .pptx)
+    Presentation = Presentation('layout15x12.pptx')
     blank_slidelayout = Presentation.slidelayouts[6]
     slide = Presentation.slides.add_slide(blank_slidelayout)
 
