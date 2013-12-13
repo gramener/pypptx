@@ -13,10 +13,12 @@ _globals = {
 nsmap = {
   'p': 'http://schemas.openxmlformats.org/presentationml/2006/main',
   'a': 'http://schemas.openxmlformats.org/drawingml/2006/main',
+  'r': 'http://schemas.openxmlformats.org/officeDocument/2006/relationships',
 }
 
 a = ElementMaker(namespace=nsmap['a'], nsmap=nsmap)
 p = ElementMaker(namespace=nsmap['p'], nsmap=nsmap)
+r = ElementMaker(namespace=nsmap['r'], nsmap=nsmap)
 
 def xmlns(*prefixes):
     return ' '.join('xmlns:%s="%s"' % (p, nsmap[p]) for p in prefixes)
@@ -77,6 +79,41 @@ _cstmshape = '<p:sp ' + xmlns('p', 'a') + ('>'
 def cust_shape(x, y, w, h):
     id = _globals['shape'] = _globals['shape'] + 1
     shp = objectify.fromstring(_cstmshape % (id, 'Freeform %d' %id, x, y, w, h))
+    return shp
+
+_table = '<p:graphicFrame ' + xmlns('p', 'a', 'r') + ('>'
+    '<p:nvGraphicFramePr>'
+    '  <p:cNvPr id="%s" name="%s"/>'
+    '    <p:cNvGraphicFramePr>'
+    '     <a:graphicFrameLocks noGrp="1"/>'
+    '    </p:cNvGraphicFramePr>'
+    '    <p:nvPr>'
+    '    <p:extLst>'
+    '     <p:ext uri="{D42A27DB-BD31-4B8C-83A1-F6EECF244321}">'
+    '      <p14:modId xmlns:p14="http://schemas.microsoft.com/office/powerpoint/2010/main" val="1325967348"/>'
+    '     </p:ext>'
+    '    </p:extLst>'
+    '  </p:nvPr>'
+    '  </p:nvGraphicFramePr>'
+    '    <p:xfrm>'
+    '      <a:off x="%s" y="%s"/>'
+    '      <a:ext cx="%s" cy="%s"/>'
+    '    </p:xfrm>'
+    '    <a:graphic>'
+    '     <a:graphicData uri="http://schemas.openxmlformats.org/drawingml/2006/table">'
+    '      <a:tbl>'
+    '       <a:tblPr firstRow="1" bandRow="1">'
+    '        <a:tableStyleId>{5940675A-B579-460E-94D1-54222C63F5DA}'
+    '        </a:tableStyleId>'
+    '       </a:tblPr>'
+    '      </a:tbl>'
+    '     </a:graphicData>'
+    '    </a:graphic>'
+    '  </p:graphicFrame>')
+
+def cust_table(x, y, w, h):
+    id = _globals['shape'] = _globals['shape'] + 1
+    shp = objectify.fromstring(_table % (id, 'Table %d' %id, x, y, w, h))
     return shp
 
 def color(schemeClr=None, srgbClr=None, prstClr=None, hslClr=None, sysClr=None, scrgbClr=None, **mod):
