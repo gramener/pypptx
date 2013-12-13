@@ -152,8 +152,9 @@ class Draw(object):
 
     @_shape_attrs
     def circle(self, e):
-        x = float(e.get('cx', 0))
-        y = float(e.get('cy', 0))
+        ax, ay = translate(e)
+        x = float(e.get('cx', 0)) + float(ax)
+        y = float(e.get('cy', 0)) + float(ay)
         r = float(e.get('r', 0))
         shp = shape('ellipse', self.x(x - r), self.y(y - r),
                                self.x(2 * r), self.y(2 * r))
@@ -162,8 +163,9 @@ class Draw(object):
 
     @_shape_attrs
     def ellipse(self, e):
-        x = float(e.get('cx', 0))
-        y = float(e.get('cy', 0))
+        ax, ay = translate(e)
+        x = float(e.get('cx', 0)) + float(ax)
+        y = float(e.get('cy', 0)) + float(ay)
         rx = float(e.get('rx', 0))
         ry = float(e.get('ry', 0))
         shp = shape('ellipse', self.x(x - rx), self.y(y - ry),
@@ -264,33 +266,40 @@ class Draw(object):
         return shp
 
     def table(self, e):
-        thead = e.xpath('//table//th')
-        #th_len = len(th)
-        #th_tr = e.xpath('//table//thead//tr')
-        #if th_tr: 
-        #    print th_tr
-        #tbl_tr = e.xpath('//table//tbody//tr')
-        #if tbl_tr:
-        #    print tbl_tr
+        thead_th = e.xpath('//table//th')
+        tbody_td = e.xpath('//table//td')
+        x = e.xpath('//table//tr')
+        for y in x:
+            for z in y:
+                print z.text
+        rows = len(thead_th)
 
         # cust_table(x, y, cx, cy)
+        shp = cust_table('464016', '1397000', '8188664', '1982034' )
+        gridcol = []
+        th_list = []
+        td_list = []
 
-        #shp = cust_table('464016', '1397000', '8188664', '1982034' )
-        #gridcol = []
-        #for th in thead:
-        #    gc = a.gridCol(w="744424")
-        #    gridcol.append(gc)
-            
-        #pp =  a.tblGrid(gridcol)
-        #print pp
-        #shp.find('.//a:tbl', namespaces=nsmap).append(a.tblGrid(gridcol))
-        #self.shapes.append(shp)
-        #return shp
+        for th in thead_th:
+            gc = a.gridCol(w="744424")
+            gridcol.append(gc)
+            th_list.append(th.text)
+        for td in tbody_td:
+            td_list.append(td.text)
+        
+        texts = th_list+td_list
+        text_values = [texts[i:i+rows] for i in range(0, len(texts), rows)]
+
+        shp.find('.//a:tbl', namespaces=nsmap).append(a.tblGrid(*gridcol))
+        for row in text_values:
+            shp.find('.//a:tbl', namespaces=nsmap).append(a.tr(h='841233'))
+            for val in row:
+                print val
 
 
-        #tr = th + td
-        #for text in tr:
-        #    print text.text
+        self.shapes.append(shp)
+        return shp
+
 
     @_shape_attrs
     def path(self, e):
@@ -390,7 +399,7 @@ if __name__ == '__main__':
     from pptx import Presentation
 
     # 'Bigger.pptx': Custom slide Size, usage: Presentatoin(path to custom .pptx)
-    Presentation = Presentation('layout15x12.pptx')
+    Presentation = Presentation('bigger.pptx')
     blank_slidelayout = Presentation.slidelayouts[6]
     slide = Presentation.slides.add_slide(blank_slidelayout)
 
