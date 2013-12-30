@@ -70,13 +70,17 @@ def translate(e):
     atag = e.get('transform')
     if atag is not None and atag.startswith('translate'):
         xy = re.findall('\d*\.?\d+', atag)
-        x, y = xy[0], xy[1]
+        xy2 = re.findall('\d*\.?\d+', gtag[0] if len(gtag) >= 1 else '0,0')
+        x, y = str(float(xy[0]) + float(xy2[0])), str(float(xy[1]) + float(xy2[1]))
     elif gtag:
         xy = re.findall('\d*\.?\d+', gtag[-1])
-        x, y = xy[0], xy[1]
+        xy2 = re.findall('\d*\.?\d+', gtag[0] if len(gtag) > 1 else '0,0')
+        x, y = str(int(xy[0]) + int(xy2[0])), str(int(xy[1]) + int(xy2[1]))
     else:
         x, y = 0, 0
     return x, y
+
+
 
 class Draw(object):
     def __init__(self, slide, width, height):
@@ -85,6 +89,7 @@ class Draw(object):
         # TODO: Replace 9999... with slide width and height
         self.x = lambda x: int(float(x) * 9999999 / width)
         self.y = lambda y: int(float(y) * 7777777 / height)
+
 
     def _shape_attrs(function):
         def wrapped(self, e):
@@ -215,8 +220,8 @@ class Draw(object):
             elif 'dy' in keys:
                 em = float(re.findall(".\d+", e.get('dy'))[0]) > 0.5
                 anchor = anchor_dict[em]
-            elif 'text-anchor' in keys:
-                anchor = anchor_dict[e.get('text-anchor')]
+            # elif 'text-anchor' in keys:
+            #     anchor = anchor_dict[e.get('text-anchor')]
             else:
                 anchor = 'ctr'
             return anchor
@@ -245,17 +250,15 @@ class Draw(object):
 
             fill_text_ml = a.solidFill(color(srgbClr=msclr(e.get('fill') if 'fill' in keys else 'black')))
 
-            autofit_ml = a.normAutofit(fontScale="62500", lnSpcReduction="20000")
+            autofit_ml = a.normAutofit(fontScale="62500", lnSpcReduction="20000")    # Auto fit
+
+            font_size = str(int(float(interpret_str(e.get('font-size')))*100)) if 'font-size' in keys else '1600'
 
 
-            if 'font-size' in keys:
-                shp.append(p.txBody(a.bodyPr(anchor=txt_anchor(), wrap='none'),
-                a.p(a.pPr(algn=txt_align()), a.r(a.rPr(fill_text_ml, lang='en-US', sz=str(int(float(interpret_str(e.get('font-size')))*100)), b=bold, dirty='0', smtClean='0'),
-                        a.t(txt)))))
+            shp.append(p.txBody(a.bodyPr(anchor=txt_anchor(), wrap='none'),
+            a.p(a.pPr(algn=txt_align()), a.r(a.rPr(fill_text_ml, lang='en-US', sz=font_size, b=bold, dirty='0', smtClean='0'),
+                    a.t(txt)))))
 
-            else:
-                shp.append(p.txBody(a.bodyPr(autofit_ml, anchor=txt_anchor(), wrap='none'),
-                    a.p(a.pPr(algn=txt_align()), a.r(a.t(txt)))))
             return shp
 
         e = tag_attrs(keys, values, e)
@@ -265,40 +268,40 @@ class Draw(object):
         self.shapes.append(shp)
         return shp
 
-    def table(self, e):
-        thead_th = e.xpath('//table//th')
-        tbody_td = e.xpath('//table//td')
-        x = e.xpath('//table//tr')
-        for y in x:
-            for z in y:
-                print z.text
-        rows = len(thead_th)
+    # def table(self, e):
+    #     thead_th = e.xpath('//table//th')
+    #     tbody_td = e.xpath('//table//td')
+    #     x = e.xpath('//table//tr')
+    #     for y in x:
+    #         for z in y:
+    #             print z.text
+    #     rows = len(thead_th)
 
-        # cust_table(x, y, cx, cy)
-        shp = cust_table('464016', '1397000', '8188664', '1982034' )
-        gridcol = []
-        th_list = []
-        td_list = []
+    #     # cust_table(x, y, cx, cy)
+    #     shp = cust_table('464016', '1397000', '8188664', '1982034' )
+    #     gridcol = []
+    #     th_list = []
+    #     td_list = []
 
-        for th in thead_th:
-            gc = a.gridCol(w="744424")
-            gridcol.append(gc)
-            th_list.append(th.text)
-        for td in tbody_td:
-            td_list.append(td.text)
+    #     for th in thead_th:
+    #         gc = a.gridCol(w="744424")
+    #         gridcol.append(gc)
+    #         th_list.append(th.text)
+    #     for td in tbody_td:
+    #         td_list.append(td.text)
         
-        texts = th_list+td_list
-        text_values = [texts[i:i+rows] for i in range(0, len(texts), rows)]
+    #     texts = th_list+td_list
+    #     text_values = [texts[i:i+rows] for i in range(0, len(texts), rows)]
 
-        shp.find('.//a:tbl', namespaces=nsmap).append(a.tblGrid(*gridcol))
-        for row in text_values:
-            shp.find('.//a:tbl', namespaces=nsmap).append(a.tr(h='841233'))
-            for val in row:
-                print val
+    #     shp.find('.//a:tbl', namespaces=nsmap).append(a.tblGrid(*gridcol))
+    #     for row in text_values:
+    #         shp.find('.//a:tbl', namespaces=nsmap).append(a.tr(h='841233'))
+    #         for val in row:
+    #             print val
 
 
-        self.shapes.append(shp)
-        return shp
+    #     self.shapes.append(shp)
+    #     return shp
 
 
     @_shape_attrs
@@ -309,20 +312,24 @@ class Draw(object):
         ax, ay = translate(e)
         xy = lambda n: (float(pathstr[n]) + (x1 if relative else 0) + float(ax),
                         float(pathstr[n + 1]) + (y1 if relative else 0) + float(ay))
-        shp = cust_shape(x1, y1, 130700, 130700)
-        path = a.path(w="130700", h="130700")
+ 
+        shp = cust_shape(x1, y1, self.x(100000), self.y(100000))
+        path = a.path(w=str(self.x(100000)), h=str(self.y(100000)))
         shp.find('.//a:custGeom', namespaces=nsmap).append(
             a.pathLst(path))
+
         while n < length:
             if pathstr[n].lower() in 'mzlhvcsqta':
                 cmd = pathstr[n].lower()
                 relative = str.islower(pathstr[n])
                 n += 1
 
+            
             if cmd == 'm':
                 x1, y1 = xy(n)
                 path.append(a.moveTo(a.pt(x=str(self.x(x1)), y=str(self.y(y1)))))
                 n += 2
+
 
             elif cmd == 'z':
                 path.append(a.close())
@@ -332,6 +339,7 @@ class Draw(object):
                 path.append(a.lnTo(a.pt(x=str(self.x(x1)), y=str(self.y(y1)))))
                 n += 2
 
+
             elif cmd == 'c':
                 xc1, yc1 = xy(n)
                 xc2, yc2 = xy(n + 2)
@@ -340,6 +348,7 @@ class Draw(object):
                     a.pt(x=str(self.x(xc2)), y=str(self.y(yc2))),
                     a.pt(x=str(self.x(x1)), y=str(self.y(y1)))))
                 n += 6
+
 
             #TODO blockArc:
             #elif cmd == 'a':
@@ -355,7 +364,6 @@ class Draw(object):
                     wR=str(self.x(wR)), hR=str(self.y(hR)),
                     stAng=str(self.x(stAng)), swAng=str(self.y(swAng))))
                 n += 7
-
 
         self.shapes.append(shp)
         return shp
@@ -398,8 +406,8 @@ if __name__ == '__main__':
 
     from pptx import Presentation
 
-    # 'Bigger.pptx': Custom slide Size, usage: Presentatoin(path to custom .pptx)
-    Presentation = Presentation('bigger.pptx')
+    # 'layout16x14.pptx': Custom slide Size, usage: Presentatoin(path to custom .pptx)
+    Presentation = Presentation('layout16x14.pptx')
     blank_slidelayout = Presentation.slidelayouts[6]
     slide = Presentation.slides.add_slide(blank_slidelayout)
 
