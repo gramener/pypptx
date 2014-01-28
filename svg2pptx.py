@@ -1,8 +1,9 @@
 """
 Converts an SVG shape into a Microsoft Office object, and saves as .pptx
 
-Usage: python svg2pptx.py filename.svg
+Source: https://github.com/gramener/pypptx
 
+Usage: python svg2pptx.py filename.svg
 """
 import re
 from lxml import etree, html
@@ -75,7 +76,7 @@ def translate(e):
     elif gtag:
         xy = re.findall('\d*\.?\d+', gtag[-1])
         xy2 = re.findall('\d*\.?\d+', gtag[0] if len(gtag) > 1 else '0,0')
-        x, y = str(int(xy[0]) + int(xy2[0])), str(int(xy[1]) + int(xy2[1]))
+        x, y = str(float(xy[0]) + float(xy2[0])), str(float(xy[1]) + float(xy2[1]))
     else:
         x, y = 0, 0
     return x, y
@@ -121,7 +122,7 @@ class Draw(object):
                     if e.get('fill') == 'none':
                         shape.spPr.append(a.noFill())
                     else:
-                        shape.spPr.append(a.solidFill(a.srgbClr(a.alpha(val=str(clr_grad(e.get('fill')))), 
+                        shape.spPr.append(a.solidFill(a.srgbClr(a.alpha(val=str(clr_grad(e.get('fill')))),
                             val=str(msclr(e.get('fill'))))))
                 elif not 'fill' in keys:
                     if tag not in ['line']:
@@ -289,7 +290,7 @@ class Draw(object):
     #         th_list.append(th.text)
     #     for td in tbody_td:
     #         td_list.append(td.text)
-        
+
     #     texts = th_list+td_list
     #     text_values = [texts[i:i+rows] for i in range(0, len(texts), rows)]
 
@@ -312,7 +313,7 @@ class Draw(object):
         ax, ay = translate(e)
         xy = lambda n: (float(pathstr[n]) + (x1 if relative else 0) + float(ax),
                         float(pathstr[n + 1]) + (y1 if relative else 0) + float(ay))
- 
+
         shp = cust_shape(x1, y1, self.x(100000), self.y(100000))
         path = a.path(w=str(self.x(100000)), h=str(self.y(100000)))
         shp.find('.//a:custGeom', namespaces=nsmap).append(
@@ -324,7 +325,7 @@ class Draw(object):
                 relative = str.islower(pathstr[n])
                 n += 1
 
-            
+
             if cmd == 'm':
                 x1, y1 = xy(n)
                 path.append(a.moveTo(a.pt(x=str(self.x(x1)), y=str(self.y(y1)))))
@@ -397,19 +398,20 @@ if __name__ == '__main__':
     import argparse
 
     parser = argparse.ArgumentParser(description=__doc__.strip())
+    parser.add_argument('--layout',
+        default='layout15x12.pptx',
+        help='PPTX file to use to create blank slide')
+    parser.add_argument('--output',
+        default='output.pptx',
+        help='Output PPTX file name')
     parser.add_argument('svgfile')
     args = parser.parse_args()
 
-    tree = html.parse(open(args.svgfile))
-    #tree = etree.parse(open(args.svgfile))
-
-
     from pptx import Presentation
 
-    # 'layout16x14.pptx': Custom slide Size, usage: Presentatoin(path to custom .pptx)
-    Presentation = Presentation('layout16x14.pptx')
-    blank_slidelayout = Presentation.slidelayouts[6]
-    slide = Presentation.slides.add_slide(blank_slidelayout)
-
+    ppt = Presentation(args.layout)
+    blank_slidelayout = ppt.slidelayouts[6]
+    slide = ppt.slides.add_slide(blank_slidelayout)
+    tree = html.parse(open(args.svgfile))
     svg2mso(slide, tree)
-    Presentation.save("test.pptx")
+    ppt.save(args.output)
