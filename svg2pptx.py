@@ -307,7 +307,7 @@ class Draw(object):
 
     @_shape_attrs
     def path(self, e):
-        pathstr = re_path.findall(e.get('d', ''))
+        pathstr = re_path.findall(e.get('d', '')) if 'nan' not in e.get('d') else []
         n, length, cmd, relative, shp = 0, len(pathstr), None, False, None
         x1, y1 = 0, 0
         ax, ay = translate(e)
